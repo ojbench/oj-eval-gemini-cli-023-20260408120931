@@ -1,0 +1,11 @@
+.clang*
+*~
+deque-my.hpp
+CMakeFiles/
+CMakeCache.txt
+code
+tests/one/code
+tests/two/code
+tests/three/code
+tests/four/code
+test_insert

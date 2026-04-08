@@ -1,133 +1,36 @@
-# Problem 023 - deque (John Class)
+# Deque Implementation
 
-**ACMOJ Problem ID**: 2642
+## 分裂和合并策略
 
-## Table of Contents
+本实现采用了分块链表（Unrolled Linked List）的数据结构来实现 `deque`。每个块（Block）内部使用一个固定容量的数组来存储元素，块与块之间通过双向链表连接。
 
-- [Problem 023 - deque (John Class)](#problem-023-deque-john-class)
-  - [Table of Contents](#table-of-contents)
-  - [Introduction](#introduction)
-    - [Background](#background)
-  - [Assignment Description](#assignment-description)
-    - [Grade Composition](#grade-composition)
-  - [Assignment Requirements](#assignment-requirements)
-    - [Input Format](#input-format)
-    - [Output Format](#output-format)
-    - [Samples](#samples)
-    - [Data Constraints](#data-constraints)
-  - [Per-Testcase Resource Limits](#per-testcase-resource-limits)
-  - [Test Data](#test-data)
-  - [Submission Requirements](#submission-requirements)
-    - [OJ Git Repository Compilation Process](#oj-git-repository-compilation-process)
-    - [Git Configuration Requirements](#git-configuration-requirements)
-    - [Submission Guidelines](#submission-guidelines)
-    - [Evaluation Notes](#evaluation-notes)
-    - [Academic Integrity](#academic-integrity)
+### 块的容量
+每个块的最大容量 `BLOCK_CAP` 设定为 512。
 
-## Introduction
+### 分裂策略 (Split)
+当向一个块中插入元素后，如果该块的元素数量达到了最大容量 `BLOCK_CAP`（即 512），则触发分裂操作。
+分裂时，将该块的后半部分（即后 256 个元素）移动到一个新创建的块中，新块插入到当前块的后面。这样，原来的一个满块就变成了两个半满的块（每个块包含 256 个元素）。
 
-### Background
+### 合并策略 (Merge)
+当从一个块中删除元素后，如果该块与其后一个相邻块的元素数量之和小于等于 `BLOCK_CAP / 2`（即 256），则触发合并操作。
+合并时，将后一个块中的所有元素移动到当前块的末尾，然后删除后一个块。
+此外，如果一个块在删除元素后变为空块（且不是双端队列中唯一的块），则直接将该空块从链表中移除并销毁。
 
-Implement STL-like deque. Git project.
+## 时间复杂度分析
 
-## Assignment Description
+1. **头尾插入和删除 (push_back, push_front, pop_back, pop_front)**
+   - **插入**：在头尾插入时，如果头尾块未满，则直接在块内进行插入，时间复杂度为 $O(1)$。如果头尾块已满，则创建一个新块并插入元素，时间复杂度同样为 $O(1)$。由于不需要移动大量元素，均摊时间复杂度为 $O(1)$。
+   - **删除**：在头尾删除时，直接在头尾块中删除元素，时间复杂度为 $O(1)$。如果块变为空，则删除该块，时间复杂度为 $O(1)$。均摊时间复杂度为 $O(1)$。
 
-### Grade Composition
+2. **随机访问 (at, operator[])**
+   - 随机访问时，需要从头块开始遍历链表，跳过前面的块直到找到目标元素所在的块。由于每个块的大小至少为 `BLOCK_CAP / 4`（除了最后一个块），块的总数在 $O(N / \text{BLOCK_CAP})$ 量级。
+   - 找到目标块后，在块内通过数组下标直接访问，时间复杂度为 $O(1)$。
+   - 因此，随机访问的最坏时间复杂度为 $O(N / \text{BLOCK_CAP})$。当 $N$ 较大时，这相当于 $O(\sqrt{N})$ 量级的时间复杂度。
 
-| Grading Component | Percentage |
-| :--: | :--: |
-| Pass **2642. deque (John Class)** | 80% |
-| Code Review | 20% |
+3. **随机插入和删除 (insert, erase)**
+   - **定位**：首先需要通过迭代器或下标找到目标位置，时间复杂度为 $O(N / \text{BLOCK_CAP})$。
+   - **块内操作**：在块内插入或删除元素时，需要移动块内的元素，最坏情况下需要移动 `BLOCK_CAP` 个元素，时间复杂度为 $O(\text{BLOCK_CAP})$。
+   - **分裂与合并**：分裂和合并操作只涉及相邻两个块之间元素的移动，最多移动 `BLOCK_CAP` 个元素，时间复杂度为 $O(\text{BLOCK_CAP})$。
+   - 综合来看，随机插入和删除的最坏时间复杂度为 $O(N / \text{BLOCK_CAP} + \text{BLOCK_CAP})$。通过合理设置 `BLOCK_CAP`（如 512），可以保证在实际应用中达到类似 $O(\sqrt{N})$ 的高效性能。
 
-Here are several points that need clarification:
-
-- In the Code Review, we will **strictly examine your code style and repository organization structure, etc.**
-
-- This assignment provides some sample data for testing, stored in the `/workspace/data/023/data_test/` directory. Note that these are not the test cases on the Online Judge. Passing all local test cases does not guarantee that you will pass the OJ tests.
-
-- Besides the provided sample data, we also encourage you to design your own test data based on your program logic to assist debugging.
-
-## Assignment Requirements
-
-### Problem Description
-
-见 github 仓库：https://github.com/SJTUJohnClass/deque
-
-### Input Format
-
-See the problem description above.
-
-### Output Format
-
-See the problem description above.
-
-### Samples
-
-No sample data provided for this problem.
-
-### Data Constraints
-
-See the problem description for constraints.
-
-## Per-Testcase Resource Limits
-
-- **Time Limit (per test case)**: 65000 ms
-- **Memory Limit (per test case)**: 1536 MiB
-- **Disk Usage**: No disk usage is permitted.
-
-## Test Data
-
-The test data for this problem is located at `/workspace/data/023/data_test/`.
-
-## Submission Requirements
-
-### OJ Git Repository Compilation Process
-
-For Git compilation, we will first clone the repository using a command similar to:
-```bash
-git clone <repo_url> . --depth 1 --recurse-submodules --shallow-submodules --no-local
-```
-
-Then we check if there is a `CMakeLists.txt` file. If it exists, we run (if not, a warning message will be displayed):
-```bash
-cmake .
-```
-
-Finally, we check if there is any of `GNUmakefile`/`makefile`/`Makefile` (if cmake was run previously, this will be the generated Makefile). If it exists, we run (if not, a warning message will be displayed):
-```bash
-make
-```
-
-After this process is complete, we will use the `code` file in the project root directory as the compilation result.
-
-A `CMakeLists.txt` file is provided in the project. You can use or modify it as needed. The local environment has gcc-13 and g++-13 available.
-
-### Git Configuration Requirements
-
-**IMPORTANT**: You must create a `.gitignore` file in your project root directory to avoid OJ evaluation conflicts.
-
-The `.gitignore` file should include at least the following entries:
-
-```gitignore
-CMakeFiles/
-CMakeCache.txt
-```
-
-### Submission Guidelines
-
-- The submitted code must be able to compile successfully through the above compilation process
-- The compiled executable file name must be `code`
-- The program needs to be able to read data from standard input and write results to standard output
-- Please ensure the code runs correctly within the given time and space limits
-- **You must use C++ or C language** to implement this assignment
-
-### Evaluation Notes
-
-- The evaluation system will test your program using the provided test data
-- The program output must exactly match the expected output (including format)
-- Exceeding time or memory limits will be judged as the corresponding error type
-- Please pay attention to the overall time performance of your code and the time complexity of each part of your algorithm.
-
-### Academic Integrity
-
-If any violations are found during evaluation or code review (including but not limited to using unconventional methods to pass test cases), your final score may be significantly reduced or become **0 points**.
+综上所述，本实现的分裂和合并策略能够有效维持块的数量和大小平衡，从而保证各项操作的时间复杂度符合要求。
