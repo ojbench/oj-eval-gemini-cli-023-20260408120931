@@ -11,7 +11,7 @@ namespace sjtu {
 
 template <class T> class deque {
 private:
-    static const size_t BLOCK_CAP = 512;
+    static const size_t BLOCK_CAP = 1024;
     struct Block {
         Block* prev;
         Block* next;
