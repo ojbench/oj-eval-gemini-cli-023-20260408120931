@@ -559,7 +559,9 @@ public:
 
   void push_back(const T &value) {
       if (total_size == 0) {
-          head = tail = new Block();
+          if (head == nullptr) {
+              head = tail = new Block();
+          }
           head->insert(0, value);
       } else {
           if (tail->size == BLOCK_CAP) {
@@ -586,7 +588,9 @@ public:
 
   void push_front(const T &value) {
       if (total_size == 0) {
-          head = tail = new Block();
+          if (head == nullptr) {
+              head = tail = new Block();
+          }
           head->insert(0, value);
       } else {
           if (head->size == BLOCK_CAP) {
