@@ -115,6 +115,14 @@ private:
         }
     }
 
+    mutable Block* last_accessed_block;
+    mutable size_t last_accessed_idx;
+
+    void invalidate_cache() const {
+        last_accessed_block = nullptr;
+        last_accessed_idx = 0;
+    }
+
 public:
   class const_iterator;
   class iterator {
@@ -388,9 +396,9 @@ public:
       return idx + it.pos;
   }
 
-  deque() : head(nullptr), tail(nullptr), total_size(0) {}
+  deque() : head(nullptr), tail(nullptr), total_size(0), last_accessed_block(nullptr), last_accessed_idx(0) {}
   
-  deque(const deque &other) : head(nullptr), tail(nullptr), total_size(0) {
+  deque(const deque &other) : head(nullptr), tail(nullptr), total_size(0), last_accessed_block(nullptr), last_accessed_idx(0) {
       Block* curr = other.head;
       while (curr) {
           for (size_t i = 0; i < curr->size; ++i) {
@@ -407,6 +415,7 @@ public:
   deque &operator=(const deque &other) {
       if (this == &other) return *this;
       clear();
+      invalidate_cache();
       Block* curr = other.head;
       while (curr) {
           for (size_t i = 0; i < curr->size; ++i) {
@@ -418,44 +427,88 @@ public:
   }
 
   T &at(const size_t &pos) {
-      if (pos >= total_size) throw index_out_of_bound();
-      Block* curr = head;
-      size_t p = pos;
-      while (curr && p >= curr->size) {
-          p -= curr->size;
-          curr = curr->next;
-      }
-      return curr->data[p];
+      return operator[](pos);
   }
   const T &at(const size_t &pos) const {
-      if (pos >= total_size) throw index_out_of_bound();
-      const Block* curr = head;
-      size_t p = pos;
-      while (curr && p >= curr->size) {
-          p -= curr->size;
-          curr = curr->next;
-      }
-      return curr->data[p];
+      return operator[](pos);
   }
   T &operator[](const size_t &pos) {
       if (pos >= total_size) throw index_out_of_bound();
-      Block* curr = head;
-      size_t p = pos;
-      while (curr && p >= curr->size) {
-          p -= curr->size;
+      Block* curr;
+      size_t curr_idx;
+      
+      if (last_accessed_block) {
+          if (pos >= last_accessed_idx) {
+              curr = last_accessed_block;
+              curr_idx = last_accessed_idx;
+          } else {
+              if (pos > last_accessed_idx / 2) {
+                  curr = last_accessed_block;
+                  curr_idx = last_accessed_idx;
+                  while (curr && curr_idx > pos) {
+                      curr = curr->prev;
+                      if (curr) curr_idx -= curr->size;
+                  }
+                  last_accessed_block = curr;
+                  last_accessed_idx = curr_idx;
+                  return curr->data[pos - curr_idx];
+              } else {
+                  curr = head;
+                  curr_idx = 0;
+              }
+          }
+      } else {
+          curr = head;
+          curr_idx = 0;
+      }
+      
+      while (curr && pos >= curr_idx + curr->size) {
+          curr_idx += curr->size;
           curr = curr->next;
       }
-      return curr->data[p];
+      
+      last_accessed_block = curr;
+      last_accessed_idx = curr_idx;
+      return curr->data[pos - curr_idx];
   }
   const T &operator[](const size_t &pos) const {
       if (pos >= total_size) throw index_out_of_bound();
-      const Block* curr = head;
-      size_t p = pos;
-      while (curr && p >= curr->size) {
-          p -= curr->size;
+      Block* curr;
+      size_t curr_idx;
+      
+      if (last_accessed_block) {
+          if (pos >= last_accessed_idx) {
+              curr = last_accessed_block;
+              curr_idx = last_accessed_idx;
+          } else {
+              if (pos > last_accessed_idx / 2) {
+                  curr = last_accessed_block;
+                  curr_idx = last_accessed_idx;
+                  while (curr && curr_idx > pos) {
+                      curr = curr->prev;
+                      if (curr) curr_idx -= curr->size;
+                  }
+                  last_accessed_block = curr;
+                  last_accessed_idx = curr_idx;
+                  return curr->data[pos - curr_idx];
+              } else {
+                  curr = head;
+                  curr_idx = 0;
+              }
+          }
+      } else {
+          curr = head;
+          curr_idx = 0;
+      }
+      
+      while (curr && pos >= curr_idx + curr->size) {
+          curr_idx += curr->size;
           curr = curr->next;
       }
-      return curr->data[p];
+      
+      last_accessed_block = curr;
+      last_accessed_idx = curr_idx;
+      return curr->data[pos - curr_idx];
   }
 
   const T &front() const {
@@ -492,6 +545,7 @@ public:
   }
 
   void clear() {
+      invalidate_cache();
       Block* curr = head;
       while (curr) {
           Block* next = curr->next;
@@ -503,6 +557,7 @@ public:
   }
 
   iterator insert(iterator pos, const T &value) {
+      invalidate_cache();
       if (pos.q != this) throw invalid_iterator();
       if (pos.b == nullptr) {
           push_back(value);
@@ -530,6 +585,7 @@ public:
   }
 
   iterator erase(iterator pos) {
+      invalidate_cache();
       if (pos.q != this || pos.b == nullptr) throw invalid_iterator();
       if (total_size == 0) throw container_is_empty();
       
@@ -558,6 +614,7 @@ public:
   }
 
   void push_back(const T &value) {
+      invalidate_cache();
       if (total_size == 0) {
           if (head == nullptr) {
               head = tail = new Block();
@@ -576,6 +633,7 @@ public:
   }
 
   void pop_back() {
+      invalidate_cache();
       if (total_size == 0) throw container_is_empty();
       tail->erase(tail->size - 1);
       --total_size;
@@ -587,6 +645,7 @@ public:
   }
 
   void push_front(const T &value) {
+      invalidate_cache();
       if (total_size == 0) {
           if (head == nullptr) {
               head = tail = new Block();
@@ -605,6 +664,7 @@ public:
   }
 
   void pop_front() {
+      invalidate_cache();
       if (total_size == 0) throw container_is_empty();
       head->erase(0);
       --total_size;
