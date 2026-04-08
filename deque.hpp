@@ -4,6 +4,8 @@
 #include "exceptions.hpp"
 #include <cstddef>
 #include <utility>
+#include <type_traits>
+#include <cstring>
 
 namespace sjtu {
 
@@ -20,17 +22,23 @@ private:
             data = reinterpret_cast<T*>(operator new(BLOCK_CAP * sizeof(T)));
         }
         ~Block() {
-            for (size_t i = 0; i < size; ++i) {
-                data[i].~T();
+            if constexpr (!std::is_trivially_destructible_v<T>) {
+                for (size_t i = 0; i < size; ++i) {
+                    data[i].~T();
+                }
             }
             operator delete(data);
         }
         void split() {
             Block* new_block = new Block();
             size_t half = size / 2;
-            for (size_t i = half; i < size; ++i) {
-                new (new_block->data + (i - half)) T(std::move(data[i]));
-                data[i].~T();
+            if constexpr (std::is_trivially_copy_constructible_v<T> && std::is_trivially_destructible_v<T>) {
+                std::memcpy(new_block->data, data + half, (size - half) * sizeof(T));
+            } else {
+                for (size_t i = half; i < size; ++i) {
+                    new (new_block->data + (i - half)) T(std::move(data[i]));
+                    data[i].~T();
+                }
             }
             new_block->size = size - half;
             size = half;
@@ -42,9 +50,13 @@ private:
         }
         void merge_next() {
             Block* next_block = next;
-            for (size_t i = 0; i < next_block->size; ++i) {
-                new (data + size + i) T(std::move(next_block->data[i]));
-                next_block->data[i].~T();
+            if constexpr (std::is_trivially_copy_constructible_v<T> && std::is_trivially_destructible_v<T>) {
+                std::memcpy(data + size, next_block->data, next_block->size * sizeof(T));
+            } else {
+                for (size_t i = 0; i < next_block->size; ++i) {
+                    new (data + size + i) T(std::move(next_block->data[i]));
+                    next_block->data[i].~T();
+                }
             }
             size += next_block->size;
             next_block->size = 0;
@@ -54,25 +66,38 @@ private:
             delete next_block;
         }
         void insert(size_t pos, const T& value) {
-            if (pos < size) {
-                new (data + size) T(std::move(data[size - 1]));
-                for (size_t i = size - 1; i > pos; --i) {
-                    data[i].~T();
-                    new (data + i) T(std::move(data[i - 1]));
+            if constexpr (std::is_trivially_copy_constructible_v<T> && std::is_trivially_copy_assignable_v<T> && std::is_trivially_destructible_v<T>) {
+                if (pos < size) {
+                    std::memmove(data + pos + 1, data + pos, (size - pos) * sizeof(T));
                 }
-                data[pos].~T();
                 new (data + pos) T(value);
             } else {
-                new (data + pos) T(value);
+                if (pos < size) {
+                    new (data + size) T(std::move(data[size - 1]));
+                    for (size_t i = size - 1; i > pos; --i) {
+                        data[i].~T();
+                        new (data + i) T(std::move(data[i - 1]));
+                    }
+                    data[pos].~T();
+                    new (data + pos) T(value);
+                } else {
+                    new (data + pos) T(value);
+                }
             }
             ++size;
         }
         void erase(size_t pos) {
-            for (size_t i = pos; i < size - 1; ++i) {
-                data[i].~T();
-                new (data + i) T(std::move(data[i + 1]));
+            if constexpr (std::is_trivially_copy_constructible_v<T> && std::is_trivially_copy_assignable_v<T> && std::is_trivially_destructible_v<T>) {
+                if (pos < size - 1) {
+                    std::memmove(data + pos, data + pos + 1, (size - pos - 1) * sizeof(T));
+                }
+            } else {
+                for (size_t i = pos; i < size - 1; ++i) {
+                    data[i].~T();
+                    new (data + i) T(std::move(data[i + 1]));
+                }
+                data[size - 1].~T();
             }
-            data[size - 1].~T();
             --size;
         }
     };
